@@ -4,7 +4,7 @@
 //#define HARDWARE
 //#define IMAGE
 
-#define	MAX_USERS 8
+#define	MAX_USERS 2 // was defined before in ofxGestures.h
 
 // Open NI
 #include "ofxOpenNIContext.h"
@@ -43,8 +43,8 @@ public:
 #endif
 	
 	float				filterFactor;
-	
-	void				setup(ofxUser * _users);
+    
+	void				setup(ofxUser * _users, string configFile);
 	void				setMasking(bool b_);
 	
 	void				update();
@@ -53,6 +53,7 @@ private:
 	ofxUser	*users;
 	bool				isCloud,isMasking;
 	void				updateUsers(int _nUsers);
+
 };
 
 #endif

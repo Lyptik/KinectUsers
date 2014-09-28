@@ -57,7 +57,7 @@ void ofxHandManager::setup(ofxUser * _users, string xmlFile,vector<Perspective> 
     }
 	
 	string host = "localhost";
-	int port = 3333;
+	int port = 12345;
 	string perspName = "FRONT";
 	absolute = true;
 	pushClicking = false;
@@ -70,7 +70,7 @@ void ofxHandManager::setup(ofxUser * _users, string xmlFile,vector<Perspective> 
 		
 			XML.pushTag("TUIO");
 			host = XML.getValue("HOST", "localhost");
-			port = XML.getValue("PORT", 3333);
+			port = XML.getValue("PORT", 12345);
 			perspName = XML.getValue("INTERFACE","FRONT");
 			
 			leftTrigger = XML.getValue("TRIGGERS:LEFTHAND", "LEFT");

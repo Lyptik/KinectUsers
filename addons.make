@@ -1,0 +1,4 @@
+ofxOpenNI
+ofxXmlSettings
+ofxAssimpModelLoader
+ofxOsc

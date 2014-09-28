@@ -1,13 +1,14 @@
 #include "ofxOpenNIProxy.h"
+#include "ofxXmlSettings.h"
 
 ofxOpenNIProxy::ofxOpenNIProxy(){
 	isMasking = isCloud	= false;
-	//filterFactor = 0.1f;
+	filterFactor = 0.01f;
 }
 
-void ofxOpenNIProxy::setup(ofxUser *_users){
+void ofxOpenNIProxy::setup(ofxUser *_users, string a_sFileName){
 	users = _users;
-	
+    
 #ifdef HARDWARE
 	hardware.setup();						// libusb direct control of motor, LED and accelerometers
 	//hardware.setLedOption(LED_OFF);
@@ -23,7 +24,7 @@ void ofxOpenNIProxy::setup(ofxUser *_users){
 #endif
 	
 	userGenerator.setup(&context);
-	//userGenerator.setSmoothing(filterFactor);	// built in openni skeleton smoothing...
+	userGenerator.setSmoothing(filterFactor);	// built in openni skeleton smoothing...
 	userGenerator.setUseMaskPixels(isMasking);
 	userGenerator.setUseCloudPoints(isCloud);
 	
@@ -59,11 +60,12 @@ void ofxOpenNIProxy::updateUsers(int nUsers = MAX_USERS){
 	xn::DepthGenerator xnDepthG = depthGenerator.getXnDepthGenerator();
 	XnUserID* xnUsers = new XnUserID[nUsers];
 	XnUInt16  found_users = nUsers;
-	
+    //int i = 0;
 	xnUserG.GetUsers(xnUsers, found_users);
 	
-	for (int i = 0; i < found_users; ++i){
-		//------------------ UPDATE CENTROID POSITION
+	for (int i = 0; i < found_users; ++i){ // commented by john to always send player 0
+    //if( found_users > 0 ) {
+        //------------------ UPDATE CENTROID POSITION
 		XnPoint3D center;
 		
 	    xnUserG.GetCoM(xnUsers[i], center);
@@ -222,7 +224,9 @@ void ofxOpenNIProxy::updateUsers(int nUsers = MAX_USERS){
 			if ( ( pt[0].X > 0) && (pt[0].Y > 0) && ( pt[0].Y > 0)) 
 				users[i].bonesPoints.right_foot.set(pt[0].X,pt[0].Y,pt[0].Z);
 		} else
-			users[i].bonesPoints.tracked = false;
+        {
+            users[i].bonesPoints.tracked = false;
+        }
 	}
 	
 	delete [] xnUsers;

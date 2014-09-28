@@ -1,7 +1,43 @@
-Icon
+# openframeworks
+*.app
+*.xcuserdatad
+
+# OSX
+
 .DS_Store
-example/Project.xcconfig
-example/openFrameworks-Info.plist
-example/example.xcodeproj/
-example/bin/example.app/
-example/addons.make
+
+# Xcode
+*.xccheckout
+xcuserdata
+
+# win
+
+Thumbs.db
+
+# Unity
+
+*.apk
+*.pidb
+*.userprefs
+Assembly-*
+*.sln
+*BUILDS
+
+Temp
+Build
+Library
+#Library/*
+
+# Un-ignore these specific files (probably useless since unity 4.x)
+
+#!Library/*.asset
+#!Library/AssetImportState
+#!Library/AssetVersioning.db
+#!Library/BuildPlayer.prefs
+#!Library/ScriptMapper
+#!Library/assetservercachev3
+#!Library/expandedItems
+#!Library/guidmapper
+#!Library/unity default resources
+#!Library/unity editor resources
+#!Library/metadata/

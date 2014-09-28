@@ -30,8 +30,8 @@ public:
 	
 	bool	bones;
 	//------------------------------ bones
-	Bones	bonesPoints, bonesVel;
-	BonesF	bonesVelF;
+	Bones	bonesPoints, bonesVel, bonesAcc;
+	BonesF	bonesVelF, bonesAccF;
 	Area	area;
 	Arms	arms;			
 	
@@ -42,13 +42,20 @@ public:
 	float	head,palms;
 	int		jumpCounter, applauseCounter;
 	
+    vector<ofVec3f>   l_iSum; // sum for average - smoothing
+    vector< vector< ofVec3f > >   l_fValuesWindow; // sum for average - smoothing
+    vector<int> indexWindow; // john
+    
 	//------------------------------- Hands
 	bool	left, right;
 	int		leftId, rightId;
-	
+    
 	ofxUser();
 	
 	void setup(int _userId, Perspective * _perspective);
+    void setSumList(int nbJoint, ofVec3f valueVect3f); // john
+    void setJointNameList(vector<string> l_sName); // john
+    void setIndexWindow(vector<int> indexWindow); // john
     void update();
 	
 	ofVec3f getPerspectiveCentroid(){return centroid * perspective->mat;};
@@ -58,12 +65,17 @@ public:
 	Bones	getPerspectiveBonesVel(){return bonesVel * perspective->mat;};
 	Area	getPerspectiveArea(){return area * perspective->mat;};
 
+    ofVec3f         averageFilter(int iJointIndex, string jointName, Bones bonesType); // john
+    ofVec3f         jointToSend(Bones lJoints, string jointName ); // john
 private:
 	Perspective *perspective;
 	
 	ofVec3f lastCentroid;
-	Bones	bonesLastPoints;
+	Bones	bonesLastPoints, bonesLastVel;
 	
+    vector<string> l_sName; // john
+    
 	void reIni();
+
 };
 #endif

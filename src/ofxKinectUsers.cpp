@@ -14,6 +14,8 @@
 
 #include "ofxKinectUsers.h"
 
+#define SMOOTHVALUE 3 // john
+
 /////////////////////////////////////////////////////////////////// SETUP
 //--------------------------------------------------------------------------------------------
 
@@ -21,29 +23,71 @@
 ofxKinectUsers::ofxKinectUsers(){
 	nPerspective = -1;
 	setMasking(false);
+    bPreviousPose = false;
+    bPreviousGesture = false;
+    for(int i  = 0 ; i < MAX_USERS ; i++)
+        lbPreviousDetectState.push_back(false);
 }
 
 // Setup and initiation of managers and configuration list
 void ofxKinectUsers::setup(string _configFile){
-	logo.loadImage("logo.png");
+    
     configFile = _configFile;					// xml file use to config everything
 
-	openni.setup(users);						// openNI Init
-	
+	openni.setup(users, _configFile);			// openNI Init
+    
+    loadOscSettings(configFile);                // Init OSC connection
+    
 	loadPerspectives(configFile);				// Loading Perspectives
-	
-	for(int i = 0 ; i < MAX_USERS; i++)
-		users[i].setup(i, &defaultPerspective);	// All users resive an id and default perspective
-	
+    
+    loadOscSettings(configFile);                // Laoding osc
+    
+    loadPointsToSend(configFile);				// Loading Skeleton jooints to send
+    
 	loadDetectionArea(configFile);				// Loading Detection Area
 	
 	gestures.setup(users,configFile, 
 				   &defaultPerspective);		// Loading Gestures
 	
 	hands.setup(users,configFile,perspectives);	// Loading Hand Manager for sending TUIO positions of the hands
+    for(int i = 0 ; i < MAX_USERS; i++)
+    {        
+		users[i].setup(i, &defaultPerspective);	// All users resive an id and default perspective
+        
+        // vector which gather the sum of each joint
+        users[i].setSumList(l_sName.size(), *new ofVec3f()); // john
+        
+        // give the list of joint name to ofxUser
+        users[i].setJointNameList(l_sName); // john
+        
+        // vector which gather the sum of each joint
+       // users[i].setWindowValue(l_sName.size(), SMOOTHVALUE);
+        
+        // vector which gather the table of SMOOTHVALUE by joint
+        for(int t = 0 ; t < l_sName.size() ; t++) // john
+        {
+            vector<ofVec3f> valueListWindow;
+            for(int cpt = 0 ; cpt < SMOOTHVALUE ; cpt++)
+            {
+                ofVec3f indexValue = *new ofVec3f();
+                indexValue.x = 0;
+                indexValue.y = 0;
+                indexValue.z = 0;
+                valueListWindow.push_back(indexValue);
+            }
+            users[i].l_fValuesWindow.push_back(valueListWindow);
+        }
+        
+        // vector which permit to commant the value list
+        vector<int> indexWindow;
+        for(int cpt = 0 ; cpt < l_sName.size() ; cpt++)
+            indexWindow.push_back(0);
+        users[i].setIndexWindow(indexWindow);
+    }
 }
 
 void ofxKinectUsers::loadPerspectives(string filePath){
+
 	ofxXmlSettings XML;
 	cout << "Loading perspectives: " << filePath;
 	
@@ -160,38 +204,88 @@ void ofxKinectUsers::setPerspective(string _name){
 	}
 }
 
+void ofxKinectUsers::loadOscSettings(string filePath) { // john
+	ofxXmlSettings XML;
+	cout << "Loading networks Settings: " << filePath;
+	
+	if (XML.loadFile(filePath)){
+		cout << " [ OK ]" << endl;
+		
+		XML.pushTag("osc");
+        m_iPort = XML.getValue("out:port",7000);
+        m_sHost = XML.getValue("out:remoteHost","localhost");
+		XML.popTag();
+	} else
+		cout << " [ FAIL ]" << endl;
+
+    sender.setup(m_sHost, m_iPort); 
+}
+
+void ofxKinectUsers::loadPointsToSend(string filePath){ // john
+	ofxXmlSettings XML;
+	cout << "Loading Points to Send by OSC Settings: " << filePath;
+	
+	if (XML.loadFile(filePath)){
+		cout << " [ OK ]" << endl;
+        
+		XML.pushTag("POINTS");
+        int nbPointsTag = XML.getNumTags("POINT");
+        
+		for (int i = 0; i < nbPointsTag ; i++){
+			XML.pushTag("POINT", i);
+            
+			string joint = XML.getValue("NAME","head");
+            string sendTF = XML.getValue("SEND","TRUE");
+			l_sName.push_back(joint);
+            l_bSend.push_back(sendTF);
+            
+			XML.popTag();
+		}
+		XML.popTag();
+	} else
+		cout << " [ FAIL ]" << endl;
+    
+    sender.setup(m_sHost, m_iPort);
+}
+
 /////////////////////////////////////////////////////////////////// UPDATE
 //--------------------------------------------------------------------------------------------
 
 void ofxKinectUsers::update(){
 	openni.update();
-	
+	ofxUser activeUser;
 	nUsers = nBones = 0;
 	float verticalNorm = 0;
 	
-	for(int i = 0 ; i < MAX_USERS; i++){
-		users[i].update();
-		
-		if ( users[i].isIni ){
+    int i = 0;
+    bool findActiveUser = false;
+    users[i].update(); // update the first user which compulsory exists
+    
+    while(!findActiveUser && i < MAX_USERS){
+        if ( users[i].isIni ){
 			if ( dArea.check3D( users[i].centroid ) ){
 				if ( !users[i].isActive ){
 					users[i].isActive = true;
 					users[i].isIdle	= false;
 					users[i].idleTime = 0;
 					ofNotifyEvent(userIn, users[i],this);
+                    sendOscBoolMsg("/player0/detect",1); //&
 				} else
 					if ((users[i].velF != 0) )//|| (users[i].bonesVelF != 0))
 						ofNotifyEvent(userMove, users[i],this);
-				
+				findActiveUser = true;
+                
 				if ( !users[i].isIdle ){
 					nUsers++;
 					verticalNorm += users[i].centroid.y;
-					if ( users[i].bones ){ 
+					if ( users[i].bones ){
 						nBones++;
 						
 						gestures.update(i);
 						hands.update(i);
 						
+                        sendOscBoolMsg("/player0/skeleton", 1); //&
+                        
 						if (users[i].inPose)
 							ofNotifyEvent(inPose, users[i],this);
 						
@@ -199,17 +293,40 @@ void ofxKinectUsers::update(){
 							ofNotifyEvent(inGesture, users[i],this);
 					}
 				}
-			} else {						
-				if (users[i].isActive){	
+			} else {
+				if (users[i].isActive){
 					users[i].isActive = false;
 					users[i].isIdle	= true;
 					users[i].bones = false;
 					ofNotifyEvent(userOut, users[i],this);
+                    
+                    // search if other user exists inside the active area
+                    bool findOtherActiveUser = false;
+                    for(int y = 0 ; y < MAX_USERS ; y++)
+                        if( y != i )
+                            if(users[y].isActive)
+                                findOtherActiveUser = true;
+                    
+                    // if not, then you can disable the skeleton and the detect
+                    if(!findOtherActiveUser)
+                    {
+                        sendOscBoolMsg("/player0/detect",0); //&
+                        sendOscBoolMsg("/player0/skeleton",0); //&
+                    }
 				}
 			}
 		}
+        i++;
     }
-	hands.send();
+    
+    // Send user information by OSC
+    if(findActiveUser)
+    {
+        if( (i-1) != 0 )
+            users[i-1].update();
+        this->sendOsc(users[i-1]); //&
+	}
+    hands.send();
 }
 
 ///////////////////////////////////////////////////////////////////
@@ -221,27 +338,37 @@ void ofxKinectUsers::mouseDragged(int _x, int _y, int _button){
 			dArea.min.x = _x;
 			dArea.min.y = _y;
 			dArea.update();
-			saveDetectionArea(configFile);
+			//saveDetectionArea(configFile); // dac TOKILL ?
 		} else if (ofDist(_x, _y, dArea.max.x, dArea.max.y) <= 30){
 			dArea.max.x = _x;
 			dArea.max.y = _y;
 			dArea.update();
-			saveDetectionArea(configFile);
-		} else if ( _x > 970-300 && _y > 550-30 )
-			ofLaunchBrowser("http://www.patriciogonzalezvivo.com");
-		//else 
-			//ofLaunchBrowser("http://www.patriciogonzalezvivo.com");
+			//saveDetectionArea(configFile); // dac TOKILL ?
+		}
 	} else if (_button == 2){
 		if ( (_x >= dArea.min.x-20) && (_x <= dArea.min.x+20) ){
 			dArea.min.z = ofMap(_y, dArea.min.y, dArea.max.y, 0, 6000, true);
 			dArea.update();
-			saveDetectionArea(configFile);
+			saveDetectionArea(configFile); // dac TOKILL ?
 		} else if ( (_x >= dArea.max.x-20) && (_x <= dArea.max.x+20) ){
 			dArea.max.z = ofMap(_y, dArea.min.y, dArea.max.y, 0, 6000, true);;
 			dArea.update();
-			saveDetectionArea(configFile);
+			//saveDetectionArea(configFile); // dac TOKILL ?
 		} 
 	} 
+}
+
+void ofxKinectUsers::mouseReleased(int x, int y, int button) {
+
+    if(button == 0) {
+        if(ofDist(x, y, dArea.min.x, dArea.min.y) <= 30 || ofDist(x, y, dArea.max.x, dArea.max.y) <= 30)
+            saveDetectionArea(configFile);
+    } else {
+        if(button == 2) {
+            if(( (x >= dArea.min.x-20) && (x <= dArea.min.x+20) ) || ( (x >= dArea.max.x-20) && (x <= dArea.max.x+20) ))
+                saveDetectionArea(configFile);                
+        }
+    }
 }
 
 void ofxKinectUsers::mousePressed(int x, int y, int button) {
@@ -337,8 +464,9 @@ void ofxKinectUsers::debugDraw(){
 			ofPoint end = users[i].vel * users[i].velF;
 			ofLine(0, 0, end.x, end.y);
 			ofPopMatrix();
-			
-			if (users[i].bones){
+            
+            if (users[i].bones){
+                
 				// Draw Bones
 				ofSetLineWidth(1);
 				ofSetColor(0, 255, 0, 255);
@@ -383,9 +511,10 @@ void ofxKinectUsers::debugDraw(){
 					ofLine(0, 0, users[i].bonesVel.bone[j]->x, users[i].bonesVel.bone[j]->y);
 					ofPopMatrix();
 				}
+                
 			} else {
 				ofSetLineWidth(1);
-					
+                
 				for (int j = 0; j < perspectives.size(); j++){
 					ofVec3f pos = users[i].centroid;
 					pos = pos * perspectives[j].mat;
@@ -412,7 +541,106 @@ void ofxKinectUsers::debugDraw(){
 	hands.drawHandAreas();
 	
 	ofFill();
-	ofSetColor(250, 255);
-	ofDrawBitmapString("Patricio Gonzalez Vivo.com",700, 540);
-	logo.draw(910, 495, 47,50.6);
 }
+
+
+//--------------------------------------------------------------
+void ofxKinectUsers::sendOsc(ofxUser user) { // john
+    ofxOscMessage  mStatesDetect, mStatesSkeleton, mPose, mGesture;
+    
+    string player = "/player0";
+    int nbJoint = l_sName.size();
+    string addr;
+    for(int i = 0 ; i < nbJoint ; i++)
+    {
+        ofxOscMessage mPos, mSpeed, mAcc;
+        
+        
+        if(l_bSend.at(i) == "TRUE")
+        {
+            //ofVec3f vjointPos = user.averageFilter( i, l_sName.at(i) );
+            
+            ofVec3f vjointPos = (user.jointToSend(user.bonesPoints, l_sName.at(i)));
+            vjointPos.x = ofNormalize(vjointPos.x, 0, 640);
+            vjointPos.y = ofNormalize(vjointPos.y, 0, 480);
+            vjointPos.z = ofNormalize(vjointPos.z, 0, 10000);
+            
+            addr = player + "/" + l_sName[i] + "/pos";
+            mPos.setAddress(addr);
+            mPos.addFloatArg(vjointPos.x);
+            mPos.addFloatArg(vjointPos.y);
+            mPos.addFloatArg(vjointPos.z);
+            sender.sendMessage(mPos);
+            
+            ofVec3f vjointVel = user.jointToSend(user.bonesVel, l_sName.at(i));
+            vjointVel.x = ofMap(vjointVel.x, -50, 50, -1, 1, true);
+            vjointVel.y = ofMap(vjointVel.y, -50, 50, -1, 1, true);
+            vjointVel.z = ofMap(vjointVel.z, -150, 150, -1, 1, true);
+            /*vjointVel = (user.jointToSend(user.bonesVel, l_sName.at(i))).normalize();*/
+            mSpeed.setAddress(player + "/" + l_sName[i] + "/speed");
+            mSpeed.addFloatArg(vjointVel.x);
+            mSpeed.addFloatArg(vjointVel.y);
+            mSpeed.addFloatArg(vjointVel.z);
+            sender.sendMessage(mSpeed);
+            
+            ofVec3f vjointAcc;
+            vjointAcc = user.jointToSend(user.bonesAcc, l_sName.at(i));
+            vjointAcc.x = ofMap(vjointAcc.x, -50, 50, -1, 1, true);
+            vjointAcc.y = ofMap(vjointAcc.y, -50, 50, -1, 1, true);
+            vjointAcc.z = ofMap(vjointAcc.z, -150, 150, -1, 1, true);
+            mAcc.setAddress(player + "/" + l_sName[i] + "/acc");
+            mAcc.addFloatArg(vjointAcc.x);
+            mAcc.addFloatArg(vjointAcc.y);
+            mAcc.addFloatArg(vjointAcc.z);
+            sender.sendMessage(mAcc);
+        }
+    }
+    
+    // POSE
+    if(user.inPose)
+    {
+        mPose.setAddress(player +  "/pose");
+        mPose.addStringArg(ofToString(user.pose));
+        sender.sendMessage(mPose);
+        bPreviousPose = true;
+    }
+    else
+    {
+        if(bPreviousPose == true)
+        {
+            mGesture.setAddress(player +  "/pose");
+            mGesture.addStringArg(" ");
+            sender.sendMessage(mGesture);
+            bPreviousPose = false;
+        }
+    }
+    
+    // GESTURE
+    if(user.inGesture)
+    {
+        mGesture.setAddress(player +  "/gesture");
+        mGesture.addStringArg(ofToString(user.gesture));
+        sender.sendMessage(mGesture);
+        bPreviousGesture = true;
+    }
+    else 
+    {
+        if(bPreviousGesture == true)
+        {
+            mGesture.setAddress(player +  "/gesture");
+            mGesture.addStringArg(" ");
+            sender.sendMessage(mGesture);
+            bPreviousGesture = false;
+        }
+    }
+}
+
+void ofxKinectUsers::sendOscBoolMsg(string address, int value) { // john
+    ofxOscMessage mBool;
+    
+    mBool.setAddress(address);
+    mBool.addIntArg(value);
+    sender.sendMessage(mBool);
+}
+
+

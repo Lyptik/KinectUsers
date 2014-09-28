@@ -62,7 +62,7 @@ public:
 
 class Bones{
 public:
-	ofVec3f head, neck, torso, left_shoulder, left_elbow, left_hand, left_hip, left_knee, left_foot, right_shoulder, right_elbow, right_hand, right_hip, right_knee, right_foot;
+    ofVec3f head, neck, torso, left_shoulder, left_elbow, left_hand, left_hip, left_knee, left_foot, right_shoulder, right_elbow, right_hand, right_hip, right_knee, right_foot;
 	ofVec3f *bone[15];
 	
 	bool		tracked;
@@ -274,11 +274,11 @@ public:
 	};
 	
 	bool check2D( float _x, float _y){
-		check2D(ofVec2f(_x,_y));
+		return check2D(ofVec2f(_x,_y));
 	}
 	
 	bool check2D(ofVec2f p){
-		check2D(ofVec3f(p.x,p.y,0));
+		return check2D(ofVec3f(p.x,p.y,0));
 	}
 	
 	bool check2D(ofVec3f p){
@@ -290,7 +290,7 @@ public:
 	}
 	
 	bool check2D( float _x, float _y, float _z){
-		check3D( ofVec3f(_x,_y,_z));
+		return check3D( ofVec3f(_x,_y,_z));
 	}
 	
 	bool check3D( ofVec3f p){

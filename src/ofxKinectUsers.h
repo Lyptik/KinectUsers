@@ -11,7 +11,8 @@
  * Creative Commons, 444 Castro Street, Suite 900, Mountain View, California, 94041, USA.
  *
  */
-#define	MAX_USERS 8
+
+#define	MAX_USERS 2
 //#define KINECT_HARDWARE
 
 #ifndef OFXKINECTUSERS
@@ -25,9 +26,12 @@
 #include "ofxGestures.h"
 #include "ofxUser.h"
 #include "ofxHandManager.h"
+#include "ofxOsc.h"
 
-class ofxKinectUsers{
+class ofxKinectUsers {
+    
 public:
+    
 	ofxUser	users[MAX_USERS];
 	int		nUsers, nBones;
 	
@@ -49,6 +53,7 @@ public:
 	void	debugDraw();
 	
 	void	mousePressed(int x, int y, int button);
+    void    mouseReleased(int x, int y, int button);
 	void	mouseDragged(int x, int y, int button);
 	
 	ofEvent<ofxUser> inPose;
@@ -58,17 +63,37 @@ public:
 	ofEvent<ofxUser> userOut;
 
 private:
+    
 	ofxOpenNIProxy	openni;
 	ofxGestures		gestures;
 	ofxHandManager	hands;
-	ofImage			logo;
 	string			configFile;
-	
+    
+    vector<bool>    lbPreviousDetectState;
+	bool            bPreviousPose; 
+    bool            bPreviousGesture; 
+    vector<string>    l_sName; // john
+    vector<string>   l_bSend; // john
+    
 	Perspective		defaultPerspective;
-	void			loadPerspectives(string xmlFile);
-	void			loadDetectionArea(string xmlFile);
-	void			saveDetectionArea(string xmlFile);
+	void			loadPerspectives(string filePath);
+	void			loadDetectionArea(string filePath);
+    void            loadOscSettings(string filePath);
+    void            loadPointsToSend(string filePath);
+	void			saveDetectionArea(string filePath);
+    void            sendOsc(ofxUser user);                      // john
+    void            sendOscBoolMsg(string address, int value) ; // john
+    
+    float           m_fLostSkeletonTempo; // john
+    float           m_fLostSkeletonStartTimer; // john
+    inline float    getModuleLostSkeletonElapsedTimef() {return ofGetElapsedTimef() - m_fLostSkeletonTempo;} // john
+    
 	vector<Perspective> perspectives;
 	int nPerspective;
+     
+    //osc // john
+    ofxOscSender    sender;
+    string m_sHost;
+    int m_iPort;
 };
 #endif

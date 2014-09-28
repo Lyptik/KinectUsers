@@ -36,7 +36,7 @@
 #include "ofxUser.h"
 #include "ofxXmlSettings.h"
 
-#define	MAX_USERS 8
+#define	MAX_USERS 2 // was 8 before
 
 class ofxHandManager{
 public:

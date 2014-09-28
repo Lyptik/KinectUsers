@@ -15,7 +15,7 @@
 #ifndef OFXGESTURES
 #define OFXGESTURES
 
-#define	MAX_USERS 8
+//#define	MAX_USERS 8
 
 #include "ofMain.h"
 #include <XnOpenNI.h>
